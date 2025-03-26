@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resource Management</title>
+
+    <!-- Leaflet Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.3.1/firebase-app.js";
+        import { getDatabase, ref, push, onValue } from "https://www.gstatic.com/firebasejs/10.3.1/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAfTY3nM3jbtUwS1GRKB_rRO9Sf6PFNUVE",
+            authDomain: "disastermanagement-7cf27.firebaseapp.com",
+            databaseURL: "https://disastermanagement-7cf27-default-rtdb.firebaseio.com",
+            projectId: "disastermanagement-7cf27",
+            storageBucket: "disastermanagement-7cf27.firebasestorage.app",
+            messagingSenderId: "315237641108",
+            appId: "1:315237641108:web:d7ae61cdf50468fc32fd81",
+            measurementId: "G-YBNHF583RT"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const database = getDatabase(app);
+
+        let map;
+        function initMap() {
+            map = L.map('map').setView([20, 78], 5);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+            loadShelters();
+            loadEarthquakeData();
+        }
+
+        function loadShelters() {
+            onValue(ref(database, 'shelters'), (snapshot) => {
+                snapshot.forEach((childSnapshot) => {
+                    const data = childSnapshot.val();
+                    L.marker([data.lat, data.lng]).addTo(map)
+                        .bindPopup(`<b>${data.name}</b><br>Status: 
+                        <span class="${data.available ? 'status-green' : 'status-red'}">
+                        ${data.available ? 'Available' : 'Full'}</span>`);
+                });
+            });
+        }
+
+        function loadEarthquakeData() {
+            fetch('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson')
+                .then(response => response.json())
+                .then(data => {
+                    const tableBody = document.getElementById("disasterTableBody");
+                    tableBody.innerHTML = "";
+
+                    data.features.forEach(eq => {
+                        const coords = eq.geometry.coordinates;
+                        const magnitude = eq.properties.mag;
+                        const place = eq.properties.place;
+
+                        let resources;
+                        let nearestShelter = '';
+                        if (magnitude >= 6) {
+                            resources = "Emergency Medical Aid, Food, Shelter, Clothing";
+                            nearestShelter = findNearestShelter(coords[1], coords[0]);
+                        } else if (magnitude >= 4) {
+                            resources = "Basic Medical Aid, Food Supplies";
+                        } else {
+                            resources = "Basic First Aid";
+                        }
+
+                        L.circleMarker([coords[1], coords[0]], {
+                            color: 'red',
+                            radius: magnitude * 2
+                        }).addTo(map).bindPopup(`<b>Location:</b> ${place}<br><b>Magnitude:</b> ${magnitude}`);
+
+                        const row = `<tr>
+                            <td>${place}</td>
+                            <td>${magnitude}</td>
+                            <td>${resources}${nearestShelter ? `<br><b>Nearest Shelter:</b> ${nearestShelter}` : ''}</td>
+                        </tr>`;
+                        tableBody.innerHTML += row;
+                    });
+                });
+        }
+
+        function findNearestShelter(eqLat, eqLng) {
+            let nearestShelter = '';
+            let minDistance = Infinity;
+
+            onValue(ref(database, 'shelters'), (snapshot) => {
+                snapshot.forEach((childSnapshot) => {
+                    const data = childSnapshot.val();
+                    const distance = getDistance(eqLat, eqLng, data.lat, data.lng);
+                    if (distance < minDistance) {
+                        minDistance = distance;
+                        nearestShelter = data.name;
+                    }
+                });
+            });
+            return nearestShelter;
+        }
+
+        function getDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371;
+            const dLat = degreesToRadians(lat2 - lat1);
+            const dLon = degreesToRadians(lon2 - lon1);
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                      Math.cos(degreesToRadians(lat1)) * Math.cos(degreesToRadians(lat2)) *
+                      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            return R * c;
+        }
+
+        function degreesToRadians(degrees) {
+            return degrees * Math.PI / 180;
+        }
+
+        function registerVolunteer() {
+            const name = prompt("Enter your name:");
+            const location = prompt("Enter your location:");
+            
+            if (name && location) {
+                push(ref(database, 'volunteers'), { name, location })
+                    .then(() => alert("Registered successfully!"))
+                    .catch((error) => alert("Error: " + error.message));
+            }
+        }
+
+        window.initMap = initMap;
+        window.registerVolunteer = registerVolunteer;
+    </script>
+
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: linear-gradient(135deg, #ff4e50, #fc913a); 
+            color: white; 
+            margin: 0; 
+            padding: 0; 
+            text-align: center; 
+            height: 100vh;
+        }
+
+        h2 {
+            margin-top: 50px;
+            font-size: 36px;
+            color: #fff;
+            text-shadow: 2px 2px 10px rgba(0, 0, 0, 0.7);
+        }
+
+        .container { 
+            width: 90%; 
+            margin: 20px auto; 
+            padding: 20px;
+            background-color: rgba(0, 0, 0, 0.7); 
+            border-radius: 10px; 
+            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.8); 
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 8px;
+            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.5);
+        }
+
+        th, td {
+            padding: 14px 20px;
+            border: 1px solid #333;
+            text-align: left;
+            font-size: 16px;
+        }
+
+        th {
+            background-color: #bf3f3f;
+            color: white;
+            font-size: 18px;
+            text-transform: uppercase;
+        }
+
+        tr:nth-child(even) {
+            background-color: #444;
+        }
+
+        tr:hover {
+            background-color: #555;
+            cursor: pointer;
+        }
+
+        .status-green { 
+            background-color: green; 
+            color: white; 
+            padding: 5px; 
+            border-radius: 5px; 
+        }
+
+        .status-red { 
+            background-color: red; 
+            color: white; 
+            padding: 5px; 
+            border-radius: 5px; 
+        }
+
+        .btn {
+            padding: 12px 25px;
+            background-color: #ff5722;
+            color: white;
+            font-size: 18px;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: background-color 0.3s ease;
+        }
+
+        .btn:hover {
+            background-color: #e64a19;
+        }
+
+        .map-container {
+            margin-top: 20px;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 3px solid #ff5722;
+            box-shadow: 0px 5px 10px rgba(0, 0, 0, 0.5);
+        }
+
+        #map { 
+            height: 500px; 
+            width: 100%; 
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        <style>
+    /* Navbar Styles */
+    .navbar {
+        background: rgba(0, 0, 0, 0.7);
+        color: white;
+        padding: 15px 30px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        position: sticky;
+        top: 0;
+        z-index: 100;
+    }
+
+    .nav-links {
+        display: flex;
+        gap: 25px;
+    }
+
+    .nav-links a {
+        color: white;
+        text-decoration: none;
+        font-weight: bold;
+        padding: 10px 15px;
+        border-radius: 5px;
+        transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
+    .nav-links a:hover {
+        background-color: #FFD700;
+        color: black;
+    }
+
+    .dropdown {
+        position: relative;
+        display: inline-block;
+    }
+
+    .dropdown-content {
+        display: none;
+        position: absolute;
+        background-color: #444;
+        min-width: 160px;
+        box-shadow: 0px 8px 16px rgba(0, 0, 0, 0.2);
+        z-index: 1;
+        border-radius: 5px;
+        padding: 10px;
+    }
+
+    .dropdown:hover .dropdown-content {
+        display: block;
+    }
+
+    .dropdown-content p {
+        margin: 5px 0;
+        color: white;
+        padding: 5px;
+        cursor: pointer;
+        border-radius: 3px;
+        transition: background-color 0.3s;
+    }
+
+    .dropdown-content p:hover {
+        background-color: #ff5722;
+    }
+
+    .time-container {
+        font-size: 16px;
+        font-weight: bold;
+        color: white;
+    }
+
+    /* Mobile Responsive Styles */
+    @media (max-width: 768px) {
+        .nav-links {
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .nav-links a {
+            padding: 12px 25px;
+            font-size: 16px;
+        }
+
+        .navbar {
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .time-container {
+            margin-top: 10px;
+        }
+    }
+</style>
+
+    </style>
+</head>
+
+<body onload="initMap()">
+    <div class="navbar">
+        <div class="nav-links">
+            <a href="index.html">Live</a>
+            <a href="https://abhijnanmallick.github.io/Earthquake_report/">Monitoring Page</a>
+            <a href="#">Resource Management</a>
+            <a href="#">Alert</a>
+            <div class="dropdown">
+                <a href="#">About Us ▼</a>
+                <div class="dropdown-content">
+                    <p>Social Media</p>
+                    <p>About this Project</p>
+                    <p>Sources</p>
+                    <p>About SDGs</p>
+                </div>
+            </div>
+        </div>
+
+    <h2>Disaster Resource Management</h2>
+    
+        <div class="time-container" id="current-time"></div>
+    </div>
+    <div class="container">
+
+        <!-- Disaster Table -->
+        <table>
+            <thead>
+                <tr>
+                    <th>Location</th>
+                    <th>Magnitude</th>
+                    <th>Resources Allocated</th>
+                </tr>
+            </thead>
+            <tbody id="disasterTableBody">
+                <tr><td colspan="3">Loading data...</td></tr>
+            </tbody>
+        </table>
+
+        <!-- Map Frame -->
+        <div class="map-container">
+            <div id="map"></div>
+        </div>
+
+        <!-- Register Volunteer Button -->
+        <button class="btn" onclick="registerVolunteer()">Register as Volunteer</button>
+    </div>
+</body>
+</html>

@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Disaster Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <style>
+        body {
+    font-family: 'Arial', sans-serif;
+    margin: 0;
+    padding: 0;
+    background: linear-gradient(to right, #FF4500, #8B0000);
+    color: white;
+}
+
+.navbar {
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.3);
+}
+
+.nav-links {
+    display: flex;
+    gap: 30px;
+}
+
+.nav-links a {
+    color: white;
+    text-decoration: none;
+    font-weight: bold;
+    position: relative;
+    transition: color 0.3s;
+}
+
+.nav-links a:hover {
+    color: #FFD700;
+}
+
+.dropdown {
+    position: relative;
+}
+
+.dropdown-content {
+    display: none;
+    position: absolute;
+    background: rgba(61, 41, 41, 0.9);
+    color: black;
+    min-width: 180px;
+    padding: 15px;
+    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2);
+    z-index: 1;
+    border-radius: 2%;
+}
+
+.dropdown:hover .dropdown-content {
+    display: block;
+}
+
+.time-container {
+    color: white;
+    font-weight: bold;
+    font-size: 18px;
+}
+
+.sidebar {
+    width: 250px;
+    background: rgba(0, 0, 0, 0.7);
+    padding: 20px;
+    position: absolute;
+    right: 0;
+    top: 50px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: white;
+}
+
+.predict-button {
+    background: #DC143C;
+    color: white;
+    padding: 15px 25px;
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+    border-radius: 10px;
+    width: 100%;
+    text-align: center;
+    margin-bottom: 20px;
+    transition: background 0.3s;
+}
+
+.predict-button:hover {
+    background: #B22222;
+}
+
+.map-container {
+    display: flex;
+    justify-content: center;
+    margin-top: 40px;
+    padding: 20px;
+}
+
+#map {
+    height: 600px;
+    width: 85%;
+    border: 15px solid white;
+    border-radius: 20px;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+}
+
+.date-container {
+    text-align: center;
+    margin-top: 30px;
+}
+
+input[type="date"] {
+    padding: 10px;
+    font-size: 16px;
+    margin: 5px 0;
+    border: 2px solid #FFD700;
+    border-radius: 5px;
+    background-color: #f4f4f4;
+}
+
+button {
+    padding: 12px 20px;
+    font-size: 16px;
+    background-color: #FF6347;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    margin: 10px 0;
+    transition: background-color 0.3s;
+}
+
+button:hover {
+    background-color: #FF4500;
+}
+
+label {
+    font-size: 18px;
+    font-weight: bold;
+}
+
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <div class="nav-links">
+            <a href="index.html">Live</a>
+            <a href="https://abhijnanmallick.github.io/Earthquake_report/">Monitoring Page</a>
+            <a href="resource.html">Resource Management</a>
+            <a href="alert.html">Alert</a>
+            <div class="dropdown">
+                <a href="#">About Us ▼</a>
+                <div class="dropdown-content">
+                    <p><a class="dropdown-item" href="aboutProject.html">About this project</a></p>
+                                <p><a class="dropdown-item" href="aboutUs.html">About us</a></p>
+                                <p><a class="dropdown-item" href="social.html">Social Media</a></p>
+                                <p><a class="dropdown-item" href="sdgs.html">About sdgs</a></p>
+                                <p>
+                                    <hr class="dropdown-divider">
+                                <p><a class="dropdown-item" href="sources.html">Sources</a></p>
+                </div>
+            </div>
+        </div>
+        <div class="time-container" id="current-time"></div>
+    </div>
+    <div class="date-container">
+        <label for="date">Select Date:</label>
+        <input type="date" id="date" name="date">
+        <button onclick="loadDisasters()">Load Disasters</button>
+        <br><br>
+        <a href="https://abhijnanmallick.github.io/disasterpredtion/">
+        <button onclick="predictDisasters()">Predict Disasters</button></a>
+    </div>
+    <div class="map-container">
+        <div id="map"></div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script>
+        function updateTime() {
+            const timeContainer = document.getElementById('current-time');
+            const now = new Date();
+            timeContainer.textContent = now.toLocaleTimeString();
+        }
+        setInterval(updateTime, 1000);
+        updateTime();
+
+        const map = L.map('map').setView([20, 0], 2);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        const disasterData = [
+        { "date": "2023-02-06", "name": "Turkey-Syria Earthquake", "lat": 37.0, "lon": 37.0 },
+    { "date": "2023-02-06", "name": "New Zealand Flood", "lat": -41.3, "lon": 174.8 },
+    { "date": "2011-03-11", "name": "Japan Earthquake and Tsunami", "lat": 38.322, "lon": 142.369 },
+    { "date": "2004-12-26", "name": "Indian Ocean Tsunami", "lat": 3.316, "lon": 95.854 },
+    { "date": "1999-10-29", "name": "Odisha Super Cyclone", "lat": 20.0, "lon": 86.0 },
+    { "date": "1986-04-26", "name": "Chernobyl Nuclear Disaster", "lat": 51.389, "lon": 30.099 },
+    { "date": "1985-09-19", "name": "Mexico City Earthquake", "lat": 19.432, "lon": -99.133 },
+    { "date": "1980-05-18", "name": "Mount St. Helens Eruption", "lat": 46.191, "lon": -122.194 },
+    { "date": "1976-07-28", "name": "Tangshan Earthquake", "lat": 39.629, "lon": 118.174 },
+    { "date": "1960-05-22", "name": "Great Chilean Earthquake", "lat": -38.29, "lon": -73.05 },
+    { "date": "1947-04-16", "name": "Texas City Disaster", "lat": 29.383, "lon": -94.902 },
+    { "date": "1931-07-01", "name": "China Floods", "lat": 30.5928, "lon": 114.3055 },
+    { "date": "1906-04-18", "name": "San Francisco Earthquake", "lat": 37.7749, "lon": -122.4194 },
+    { "date": "1883-08-27", "name": "Krakatoa Eruption", "lat": -6.102, "lon": 105.423 },
+    { "date": "1815-04-10", "name": "Mount Tambora Eruption", "lat": -8.25, "lon": 118.0 },
+    
+    // Additional disasters
+    { "date": "2010-01-12", "name": "Haiti Earthquake", "lat": 18.971, "lon": -72.285 },
+    { "date": "2005-08-29", "name": "Hurricane Katrina", "lat": 29.9511, "lon": -90.0715 },
+    { "date": "2017-09-20", "name": "Hurricane Maria", "lat": 18.4655, "lon": -66.1057 },
+    { "date": "2011-05-22", "name": "Joplin Tornado", "lat": 37.0842, "lon": -94.5133 },
+    { "date": "1989-10-17", "name": "Loma Prieta Earthquake", "lat": 37.04, "lon": -121.88 },
+    { "date": "2008-05-02", "name": "Cyclone Nargis", "lat": 16.805, "lon": 95.2 },
+    { "date": "2015-04-25", "name": "Nepal Earthquake", "lat": 28.23, "lon": 84.731 },
+    { "date": "1995-01-17", "name": "Kobe Earthquake", "lat": 34.68, "lon": 135.17 },
+    { "date": "1979-03-28", "name": "Three Mile Island Nuclear Accident", "lat": 40.152, "lon": -76.725 },
+    { "date": "2020-08-04", "name": "Beirut Explosion", "lat": 33.89, "lon": 35.51 },
+    { "date": "2019-03-15", "name": "Cyclone Idai", "lat": -19.0, "lon": 35.0 },
+    { "date": "2018-09-28", "name": "Sulawesi Earthquake and Tsunami", "lat": -0.89, "lon": 119.87 },
+    { "date": "1950-08-15", "name": "Assam-Tibet Earthquake", "lat": 28.5, "lon": 96.5 },
+    { "date": "1923-09-01", "name": "Great Kanto Earthquake", "lat": 35.7, "lon": 139.7 },
+    { "date": "2003-12-26", "name": "Bam Earthquake", "lat": 29.107, "lon": 58.361 },
+    { "date": "2010-02-27", "name": "Chile Earthquake", "lat": -35.85, "lon": -72.71 },
+    { "date": "2001-01-26", "name": "Gujarat Earthquake", "lat": 23.419, "lon": 70.232 },
+    { "date": "1976-02-04", "name": "Guatemala Earthquake", "lat": 14.5, "lon": -90.5 },
+    { "date": "2019-11-26", "name": "Albania Earthquake", "lat": 41.466, "lon": 19.5 },
+    { "date": "2016-08-24", "name": "Central Italy Earthquake", "lat": 42.7, "lon": 13.2 }
+        ];
+
+        function loadDisasters() {
+            const selectedDate = document.getElementById('date').value;
+            const disastersOnDate = disasterData.filter(d => d.date === selectedDate);
+
+            if (disastersOnDate.length === 0) {
+                alert("No disasters found for this date.");
+            } else {
+                disastersOnDate.forEach(disaster => {
+                    const { lat, lon, name } = disaster;
+                    const marker = L.marker([lat, lon]).addTo(map);
+                    marker.bindPopup(`<b>${name}</b><br>Latitude: ${lat}, Longitude: ${lon}`);
+                });
+            }
+        }
+
+        function predictDisasters() {
+            const selectedYear = document.getElementById('year').value;
+            if (!selectedYear) {
+                alert("Please enter a valid year.");
+                return;
+            }
+
+            const predictedDisasters = [
+                { "year": "2025", "name": "Predicted Cyclone", "lat": 20.0, "lon": 80.0 },
+                { "year": "2026", "name": "Predicted Earthquake", "lat": 35.0, "lon": 138.0 }
+            ];
+
+            const disastersForYear = predictedDisasters.filter(d => d.year === selectedYear);
+            if (disastersForYear.length === 0) {
+                alert("No predictions available for this year.");
+            } else {
+                disastersForYear.forEach(disaster => {
+                    const { lat, lon, name } = disaster;
+                    const marker = L.marker([lat, lon]).addTo(map);
+                    marker.bindPopup(`<b>${name}</b><br>Latitude: ${lat}, Longitude: ${lon}`);
+                });
+            }
+        }
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        let markers = [];
+
+        function clearMarkers() {
+            markers.forEach(marker => map.removeLayer(marker));
+            markers = [];
+        }
+
+        async function fetchEarthquakes() {
+            const url = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson";
+            const response = await fetch(url);
+            const data = await response.json();
+            data.features.forEach(eq => {
+                const coords = eq.geometry.coordinates;
+                const magnitude = eq.properties.mag;
+                const place = eq.properties.place;
+                const marker = L.marker([coords[1], coords[0]], { icon: L.icon({
+                    iconUrl: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png'
+                }) }).addTo(map)
+                .bindPopup(`<b>Earthquake</b><br>Location: ${place}<br>Magnitude: ${magnitude}`);
+                markers.push(marker);
+            });
+        }
+
+        async function fetchFloods() {
+            const url = "https://www.gdacs.org/xml/rss.xml"; // Replace with an actual flood API if available
+            try {
+                const response = await fetch(url);
+                const text = await response.text();
+                const parser = new DOMParser();
+                const xmlDoc = parser.parseFromString(text, "text/xml");
+                const items = xmlDoc.getElementsByTagName("item");
+                for (let i = 0; i < items.length; i++) {
+                    const title = items[i].getElementsByTagName("title")[0].textContent;
+                    const lat = parseFloat(items[i].getElementsByTagName("geo:lat")[0].textContent);
+                    const lon = parseFloat(items[i].getElementsByTagName("geo:long")[0].textContent);
+                    const marker = L.marker([lat, lon], { icon: L.icon({
+                        iconUrl: 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png'
+                    }) }).addTo(map)
+                    .bindPopup(`<b>Flood</b><br>${title}`);
+                    markers.push(marker);
+                }
+            } catch (error) {
+                console.error("Failed to fetch flood data:", error);
+            }
+        }
+
+        fetchEarthquakes();
+        fetchFloods();
+    </script>
+</body>
+</html>
